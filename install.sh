@@ -2,11 +2,10 @@
 
 set -x
 
-install_vigo_docker_manager(){
+install_ipth(){
 local SRC_PATH=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )'/src'
-local DST_PATH='/opt/vdm/'
-local check_file_name_existence=${SRC_PATH}'/vdm_run.sh'
-
+local DST_PATH='/opt/ipth/'
+local check_file_name_existence=${SRC_PATH}'/ipth.sh'
 
 
 
@@ -62,9 +61,9 @@ done
 
 } # end main
 
-uninstall_vigo_docker_manager() {
+uninstall_ipth() {
     echo 'uninstall not implemented yet, unlink manually'
 }
 
 
-install_vigo_docker_manager $0
+install_ipth $0

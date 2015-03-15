@@ -1,5 +1,6 @@
 
-
+# todo:
+documentation & usability guide :)     
 
 
 # inspirations:
@@ -10,5 +11,3 @@ http://daemonkeeper.net/781/mass-blocking-ip-addresses-with-ipset/
 
 https://github.com/lehmannro/assert.sh/blob/master/assert.sh
 
-# todo:
-     
