@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
 set -x
 set -e
@@ -6,54 +6,109 @@ set -o pipefail
 
 . ./../src/ipth.sh
 
-REQUIRED_VERSION="1.0"
-[ "${script[version]}" == "$REQUIRED_VERSION" ] || {
-echo 'invalid version.. current = '"${script[version]}"' , required = '$REQUIRED_VERSION
-exit 1 ;
+ipth_check_version "1.1"
+
+test_chain_name="test_chain"
+test_table="filter"
+
+# delete test chain if exist
+if find_chain_exists $test_table $test_chain_name ; then
+    echo 'test chain:'$test_chain_name' exists and will be deleted before test can start '
+    recursive_delete_chain $test_table $test_chain_name
+fi
+
+
+# create chain and then chain should exists
+create_chain $test_table $test_chain_name
+if ! find_chain_exists $test_table  $test_chain_name ; then
+    echo 'error, '$test_chain_name'  chain should exists at this point '
+    exit 1
+fi
+
+
+
+
+# generate jump and count references
+create_jump_rule $test_table 'INPUT' $test_chain_name 'first'
+count_references=$(get_chain_references_count $test_table $test_chain_name)
+[ "${count_references}" == "1" ] || {
+    echo 'error, references count should be 1'
+    exit 1
+}
+create_jump_rule $test_table 'OUTPUT' $test_chain_name 'first'
+
+count_references=$(get_chain_references_count $test_table $test_chain_name)
+[ "${count_references}" == "2" ] || {
+    echo 'error, references count should be 2'
+    exit 1
 }
 
-#DOCKER_RULE_NUMBER=$(find_jumpchain_rule_number filter FORWARD DOCKER)
-#echo 'filter FORWARD DOCKER > DOCKER_RULE_NUMBER='$DOCKER_RULE_NUMBER
-#[ "$DOCKER_RULE_NUMBER" -gt "0" ] && echo 'docker exists!'
-#
-#
-#chain_name="FORWARD"
-#LAST_RULE_NUMBER=$(get_last_rule_number filter $chain_name)
-#echo 'filter '$chain_name'  > LAST_RULE_NUMBER='$LAST_RULE_NUMBER
-#[ "$LAST_RULE_NUMBER" -lt "1" ] && echo 'chain '$chain_name' is empty !'
-#
-#
-#
-#chain_name="INPUT"
-#LAST_RULE_NUMBER=$(get_last_rule_number filter $chain_name )
-#echo 'filter '$chain_name' > LAST_RULE_NUMBER='$LAST_RULE_NUMBER
-#[ "$LAST_RULE_NUMBER" -lt "1" ] && echo 'chain '$chain_name' is empty !'
-#
-#
-#$(create_or_flush_initial_jump_chain "nat" "PREROUTING" "V_FIRST_NAT_PREROUTING")
-#/sbin/iptables  -t nat  -A V_FIRST_NAT_PREROUTING -i 136.243.20.75  -m state --state NEW -p tcp --destination-port  8126 -j ACCEPT
-
-
-# PREROUTING
-if find_chain_exists nat PREROUTING ; then
- echo PREROUTING exists
-fi
-if ! find_chain_exists nat xxx ; then
- echo xxx do not exists
+## now delete chain with references
+recursive_delete_chain $test_table $test_chain_name
+if find_chain_exists $test_table  $test_chain_name ; then
+    echo 'error, '$test_chain_name'  chain should has been removed '
+    exit 1
 fi
 
 
 
 
-if insert_custom_chain 1 nat PREROUTING; then
-    echo created
-fi
+# test chain name generator :
+[ "$(autogenerate_custom_chain_name 'filter' 'INPUT' 'first')" == "v_first_filter_INPUT" ] || {
+    echo 'error, wrong expectations on generated name '
+    exit 1
+}
+[ "$(autogenerate_custom_chain_name 'filter' 'INPUT' 'last')" == "v_last_filter_INPUT" ] || {
+    echo 'error, wrong expectations on generated name '
+    exit 1
+}
+
+
+generated_table=$(autocreate_autopositioned_chain 0 'filter' 'INPUT' 'first')
+[ ! -z "$generated_table" ] && {
+    echo 'error, table should has been disabled! > '$generated_table
+    exit 1
+}
+
+generated_table=$(autocreate_autopositioned_chain 1 'filter' 'INPUT' 'first')
+[ -z "$generated_table" ] && {
+    echo 'error, table should has been enabled! > '$generated_table
+    exit 1
+}
+count_references=$(get_chain_references_count 'filter' $generated_table)
+[ "${count_references}" == "1" ] || {
+    echo 'error, references count should be 1'
+    exit 1
+}
 
 
 
-exit 0
-#$(create_or_flush_initial_jump_chain "nat" "PREROUTING" "V_FIRST_NAT_PREROUTING")
-#/sbin/iptables  -t nat  -A V_FIRST_NAT_PREROUTING -i 136.243.20.75  -m state --state NEW -p tcp --destination-port  8126 -j ACCEPT
+## -- TEMPLATE SAMPLE
+tablename="filter"
+chainparent_position="first"
+chain_parent="INPUT"
+enabled="1"
+# full & recreate rule
+built_chain=$(autocreate_autopositioned_chain $enabled $tablename $chain_parent $chainparent_position)
+# if created, apply rules
+[ ! -z "$built_chain" ] && {
+/sbin/iptables  -t  $tablename  -A "$built_chain" -p tcp -m limit --limit 5/min -j LOG --log-prefix "Denied TCP: " --log-level 7
+/sbin/iptables  -t  $tablename  -A "$built_chain" -p tcp -m limit --limit 51/min -j LOG --log-prefix "Denied TCP2: " --log-level 7
+}
+
+## test assertions
+rules_count=$(get_last_rule_number $tablename $built_chain)
+[ "${rules_count}" == "2" ] || {
+    echo 'error, unexpected rules count '
+    exit 1
+}
+recursive_delete_chain $tablename $built_chain
 
 
+
+
+# test with two custom chain, as first and last
+# -- todo
+
+echo " TEST OK ! "
 exit 0

@@ -6,7 +6,7 @@ shopt -qs extglob
 
 # global arrays: script metadata, user config, user commands
 declare -Ax script config calltable
-script[version]='1.0'
+script[version]='1.1'
 script[name]="${0##*/}"
 script[pid]=$$
 script[cmd_prefix]='cmd:'
@@ -26,15 +26,25 @@ default_ipt_chains[mangle]='PREROUTING FORWARD INPUT OUTPUT POSTROUTING'
 default_ipt_chains[raw]='PREROUTING OUTPUT'
 default_ipt_chains[security]='INPUT FORWARD OUTPUT'
 
+
+ipth_check_version () {
+REQUIRED_VERSION=$1
+[ "${script[version]}" == "$REQUIRED_VERSION" ] || {
+echo 'invalid version.. current = '"${script[version]}"' , required = '$REQUIRED_VERSION
+return 1 ;
+}
+}
+
 find_chain_exists(){
 # search for a chain into a table
 # return true (in bash is "return 0") if chain exists , false if not
 local table_source=$1
 local chain_to_search=$2
-local count_found=$(iptables  -L -n --line-number -t $table_source | awk '$2 ~ "^'${chain_to_search}'$" {print $2}' | wc -l )
-count_found=${count_found:-0}
-[ "$count_found" -eq "1" ] && return 0 || return 1
+#local count_found=$(iptables  -L -n --line-number -t $table_source | awk '$2 ~ "^'${chain_to_search}'$" {print $2}' | wc -l )
+local found=$(iptables  -L $chain_to_search -n -t $table_source 2>&1 >/dev/null && echo 'yes' || echo 'no' )
+[ "$found" == "yes" ] && return 0 || return 1
 }
+
 
 find_jumpchain_rule_number (){
 # search a jump chain rule number into another source-chain
@@ -100,68 +110,124 @@ get_chain_references_count() {
 # @return the count of references to a chain
 local table_name=$1
 local chain_to_search=$2
-local retval=$(iptables -L -n -v -t nat  | grep 'Chain '$table_name | sed -e 's/^[^\(]*(\([0-9]*\).*/\1/g')
+local retval=$(iptables -L -n -v -t $table_name  | grep 'Chain '$chain_to_search | sed -e 's/^[^\(]*(\([0-9]*\).*/\1/g')
 retval=${retval:-0}
 echo $retval
 }
 
-create_or_flush_initial_jump_chain (){
-# create the chain and the jump-into-chain rule as first rule for provided
-# table and chain
-#
-# usage:
-# $(create_or_flush_initial_jump_chain "nat" "PREROUTING" "V_FIRST_NAT_PREROUTING")
-local table_name=$1
-local chain_to_search_into=$2
-local chain_to_search=$3
-local FOUND_RULE_NUMBER=$(find_jumpchain_rule_number $table_name $chain_to_search_into $chain_to_search)
-[ "$FOUND_RULE_NUMBER" -lt "1" ] && {
-echo 'create_or_flush_initial_jump_chain > '$chain_to_search' must be created..' >&2
-/sbin/iptables -t $table_name -N $chain_to_search
-echo 'create_or_flush_initial_jump_chain > creation of jump to chain rule for : '$chain_to_search' ' >&2
-/sbin/iptables -t $table_name -I $chain_to_search_into 1 -j $chain_to_search
-} || {
-echo 'create_or_flush_initial_jump_chain > '$chain_to_search' must be flushed..' >&2
-/sbin/iptables -t $table_name -F $chain_to_search
-}
 
-}
+recursive_delete_chain() {
+# performed actions:
+# - delete references to custom chain,
+# - delete custom chains
+    declare -A creator
+    creator[table]=$1
+    creator[custom_chain_name]=$2
 
-
-
-insert_custom_chain() {
-# @ return true (bash return code 0 )  if chain is enabled , false if not
-# usage:
-# if insert_custom_chain 1 nat PREROUTING; then
-#     append table rules here ...
-# fi
-
-
-
-    declare -Ax creator
-
-    ## header
-    creator[enabled]=$1 # 0 = false , 1 = true
-    creator[table]=$2
-    creator[chain]=$3
-    # header footer > create custom rule name using header variables
-    creator[custom_chain_name]='v_first_'"${creator[table]}"'_'"${creator[chain]}"
-    ## flush
-    echo '>>> deletin references for chain : '$creator[custom_chain_name] >&2
+    # CLEAR PREVIOUS STATUS > delete references to chain and delete chain
+    echo '>>> deleting references for chain : '$creator[custom_chain_name] >&2
 
     deleted_items=$(delete_chain_references_in_default_chains "${creator[custom_chain_name]}" "${creator[table]}")
     echo '>>> deleting chain : '"${creator[custom_chain_name]}" >&2
+    ## flush
+    /sbin/iptables -t "${creator[table]}" -F "${creator[custom_chain_name]}"
+    ## delete
     /sbin/iptables -t "${creator[table]}" -X "${creator[custom_chain_name]}"
-
-    # rebuild
-    [ "${creator[enabled]}" -eq "1" ] && {
-    echo '>>> rebuilding chain : '$creator[custom_chain_name] >&2
-    /sbin/iptables -t "${creator[table]}" -N "${creator[custom_chain_name]}"
-
-    echo '>>> creating jump rule  : '$creator[custom_chain_name] >&2
-    /sbin/iptables -t "${creator[table]}" -I "${creator[chain]}" 1 -j "${creator[custom_chain_name]}"
-    return 0; # return true
-    } || {
-    return 1; # return false
-    }
 }
+
+create_chain() {
+# create the required chain
+    declare -A creator
+    creator[table]=$1
+    creator[custom_chain_name]=$2
+
+    /sbin/iptables -t "${creator[table]}" -N "${creator[custom_chain_name]}"
+    [ "$?" == "0" ] || {
+        echo '[FATAL] error during chain creation ! '"${creator[table]}"' '"${creator[custom_chain_name]}" >&2
+        exit 1
+    }
+    return 0
+}
+
+
+autogenerate_custom_chain_name() {
+    declare -A creator
+    creator[table]=$1
+    creator[chain]=$2 # chain name (if position is manual) , or destination chain
+    creator[position]=$3 # first , last ( default) , manual
+    local retval='v_'"${creator[position]}"'_'"${creator[table]}"'_'"${creator[chain]}"
+    echo $retval
+}
+
+create_jump_rule(){
+# inject chain jump on first or last position in given parent chain
+    declare -A creator
+    creator[table]=$1
+    creator[chain_src]=$2 # source chain where to insert the jump rule
+    creator[chain_dst]=$3 # chain to jump into
+    creator[position]=$4 # first , last ( default)
+    local JUMP_ADDITIONAL_PARAMS=$5 # additional matches for the jump rule
+
+    ## custom chain positioning
+    local RULE_position=""
+    local RULE_binding_action="A" # append
+    [ "${creator[position]}" == "first" ] && {
+        RULE_position="1"
+        RULE_binding_action="I" # insert
+    }
+
+    /sbin/iptables -t "${creator[table]}" -"${RULE_binding_action}" "${creator[chain_src]}" $RULE_position $JUMP_ADDITIONAL_PARAMS -j "${creator[chain_dst]}"
+
+    [ "$?" == "0" ] || {
+        echo '[FATAL] error during jump insertion ! > '"${creator[table]}"' -'"${RULE_binding_action}"' '"${creator[chain_src]}"' '$RULE_position' '$JUMP_ADDITIONAL_PARAMS' -j '"${creator[chain_dst]}" >&2
+        exit 1
+    }
+    return 0
+}
+
+
+
+autocreate_autopositioned_chain() {
+# create chain autopositioned & autnominated on top/bottom of another chain
+# return the name of the chain created or '' if the chain has been only flushed & deleted
+
+    declare -A creator
+
+    # HEADER
+    creator[enabled]=$1 # 0 = false , 1 = true
+    creator[table]=$2 # iptables destination table
+    creator[chain]=$3 # destination chain
+    creator[position]=$4 # first , last ( default)
+
+    # PARAM VALIDATION
+    [ "${creator[position]}" != "first" ] && [ "${creator[position]}" != "last" ] && {
+        echo '[FATAL] invalid chain positioning '"${creator[position]}" >&2
+        exit 1
+    }
+
+    # GENERATE CHAIN NAME
+    local GENERATED_CHAIN_NAME=$(autogenerate_custom_chain_name "${creator[table]}" "${creator[chain]}" "${creator[position]}")
+    echo 'generated chain name : '$GENERATED_CHAIN_NAME >&2
+
+    # FLUSH PREVIOUS VERSION OF THE CHAIN
+    if find_chain_exists "${creator[table]}" $GENERATED_CHAIN_NAME ; then
+        echo 'previous version of the chain is going to be flushed : '$GENERATED_CHAIN_NAME >&2
+        recursive_delete_chain "${creator[table]}" $GENERATED_CHAIN_NAME
+    fi
+
+
+    if [ "${creator[enabled]}" -eq "1" ] ; then
+
+        create_chain "${creator[table]}" $GENERATED_CHAIN_NAME
+        create_jump_rule "${creator[table]}" "${creator[chain]}" $GENERATED_CHAIN_NAME "${creator[position]}"
+
+        echo 'chain '$GENERATED_CHAIN_NAME ' is now enabled' >&2
+        echo $GENERATED_CHAIN_NAME
+    else
+        echo 'chain '$GENERATED_CHAIN_NAME ' will be disabled' >&2
+        echo ''
+    fi
+
+
+}
+
