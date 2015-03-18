@@ -84,6 +84,8 @@ count_references=$(get_chain_references_count 'filter' $generated_table)
 
 
 ## -- TEMPLATE SAMPLE
+declare -ga custom_created_chains
+#custom_created_chains=() #array of custom created chains ( to be used in case of reset )
 tablename="filter"
 chainparent_position="first"
 chain_parent="INPUT"
@@ -92,6 +94,7 @@ enabled="1"
 built_chain=$(autocreate_autopositioned_chain $enabled $tablename $chain_parent $chainparent_position)
 # if created, apply rules
 [ ! -z "$built_chain" ] && {
+custom_created_chains+=("$tablename/$built_chain")
 /sbin/iptables  -t  $tablename  -A "$built_chain" -p tcp -m limit --limit 5/min -j LOG --log-prefix "Denied TCP: " --log-level 7
 /sbin/iptables  -t  $tablename  -A "$built_chain" -p tcp -m limit --limit 51/min -j LOG --log-prefix "Denied TCP2: " --log-level 7
 }
@@ -103,6 +106,81 @@ rules_count=$(get_last_rule_number $tablename $built_chain)
     exit 1
 }
 recursive_delete_chain $tablename $built_chain
+
+echo 'chain array = ' "${custom_created_chains[0]}"
+
+
+#test automated chain array creation
+[ ${custom_created_chains[0]} == "filter/$built_chain" ] || {
+    echo 'error, unexpected created chains array values  '
+    exit 1
+}
+
+
+
+# TEST AUTOMATED-CHAIN-RESET
+BUILT_auto_CHAIN_1=""
+BUILT_auto_CHAIN_2=""
+tablename="filter"
+chainparent_position="first"
+chain_parent="INPUT"
+enabled="1"
+# full & recreate rule
+built_chain=$(autocreate_autopositioned_chain $enabled $tablename $chain_parent $chainparent_position)
+BUILT_auto_CHAIN_1=$built_chain
+# if created, apply rules
+[ ! -z "$built_chain" ] && {
+custom_created_chains+=("$tablename/$built_chain")
+/sbin/iptables  -t  $tablename  -A "$built_chain" -p tcp -m limit --limit 5/min -j LOG --log-prefix "Denied TCP -- aaa: " --log-level 7
+/sbin/iptables  -t  $tablename  -A "$built_chain" -p tcp -m limit --limit 51/min -j LOG --log-prefix "Denied TCP2 -- aaa: " --log-level 7
+}
+
+
+# ....  another automated created chain ...
+tablename="filter"
+chainparent_position="last"
+chain_parent="FORWARD"
+enabled="1"
+# full & recreate rule
+built_chain=$(autocreate_autopositioned_chain $enabled $tablename $chain_parent $chainparent_position)
+BUILT_auto_CHAIN_2=$built_chain
+# if created, apply rules
+[ ! -z "$built_chain" ] && {
+custom_created_chains+=("$tablename/$built_chain")
+/sbin/iptables  -t  $tablename  -A "$built_chain" -p tcp -m limit --limit 5/min -j LOG --log-prefix "Denied TCP -- bbbb: " --log-level 7
+/sbin/iptables  -t  $tablename  -A "$built_chain" -p tcp -m limit --limit 51/min -j LOG --log-prefix "Denied TCP2 -- bbbb: " --log-level 7
+}
+
+
+# test rules count
+
+rules_count=$(get_last_rule_number $tablename $BUILT_auto_CHAIN_1)
+[ "${rules_count}" == "2" ] || {
+    echo 'error, unexpected rules count in'$BUILT_auto_CHAIN_1
+    exit 1
+}
+
+
+
+## show current iptables conf
+echo 'not both 2 custom chain should exists with jumps from forward and input chains...\n'
+iptables -L  -n -v -t filter
+
+delete_created_custom_chains
+
+# ... verify that custom-created-chain no longer exists
+if find_chain_exists $tablename $BUILT_auto_CHAIN_1 ; then
+    echo 'error, '$tablename' '$built_chain ' should has been delete from >delete_created_custom_chains'
+    exit 1
+fi
+
+# ... verify that custom-created-chain no longer exists
+if find_chain_exists $tablename $BUILT_auto_CHAIN_2 ; then
+    echo 'error, '$tablename' '$BUILT_auto_CHAIN_2' should has been delete from >delete_created_custom_chains'
+    exit 1
+fi
+
+
 
 
 

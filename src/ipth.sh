@@ -5,7 +5,7 @@
 shopt -qs extglob
 
 # global arrays: script metadata, user config, user commands
-declare -Ax script config calltable
+declare -Ax script config
 script[version]='1.1'
 script[name]="${0##*/}"
 script[pid]=$$
@@ -43,6 +43,14 @@ local chain_to_search=$2
 #local count_found=$(iptables  -L -n --line-number -t $table_source | awk '$2 ~ "^'${chain_to_search}'$" {print $2}' | wc -l )
 local found=$(iptables  -L $chain_to_search -n -t $table_source 2>&1 >/dev/null && echo 'yes' || echo 'no' )
 [ "$found" == "yes" ] && return 0 || return 1
+}
+
+if_exists_recusively_delete_chain() {
+local table=$1
+local chain=$2
+if find_chain_exists $table $chain ; then
+    recursive_delete_chain $table $chain
+fi
 }
 
 
@@ -150,6 +158,34 @@ create_chain() {
 }
 
 
+set_default_accept_policy() {
+/sbin/iptables -t filter  -P INPUT ACCEPT
+/sbin/iptables -t filter  -P OUTPUT ACCEPT
+/sbin/iptables -t filter  -P FORWARD ACCEPT
+}
+
+delete_created_custom_chains(){
+    local chains_count=${#custom_created_chains[@]}
+    if [ "$chains_count" -lt "1" ]; then
+        echo '[WARNING] reset chain has been called but custom chain array is empty' >&2
+        return 0
+    fi
+    for i in "${!custom_created_chains[@]}"
+    do
+        echo "key  : $i"
+        table_and_chain_to_split="${custom_created_chains[$i]}"
+        splitted_ar=(${table_and_chain_to_split//\// })
+        if [ "${#splitted_ar[@]}" != "2" ]; then
+            echo '[ERROR] delete_created_custom_chains>  error during table/chain split-count '$i' , table_and_chain_to_split='$table_and_chain_to_split' , splitted_ar='$splitted_ar >&2
+            return 1
+        else
+            echo ' splitted_ar='"${splitted_ar[@]}"
+            if_exists_recusively_delete_chain "${splitted_ar[0]}" "${splitted_ar[1]}"
+        fi
+    done
+
+}
+
 autogenerate_custom_chain_name() {
     declare -A creator
     creator[table]=$1
@@ -160,7 +196,7 @@ autogenerate_custom_chain_name() {
 }
 
 create_jump_rule(){
-# inject chain jump on first or last position in given parent chain
+# inject jump-to-chain as first or last rule in given parent chain
     declare -A creator
     creator[table]=$1
     creator[chain_src]=$2 # source chain where to insert the jump rule
