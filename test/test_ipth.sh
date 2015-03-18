@@ -184,6 +184,34 @@ fi
 
 
 
+## create manual positioned chain, the chain created should exists and have 0 references
+tablename="filter"
+chain_manual_name="test_manual_chain"
+enabled="1"
+built_chain=$(autocreate_manual_positioned_chain $enabled $tablename $chain_manual_name)
+[ ! -z "$built_chain" ] && {
+custom_created_chains+=("$tablename/$built_chain")
+/sbin/iptables  -t  $tablename  -A "$built_chain" -p tcp -m limit --limit 5/min -j LOG --log-prefix " custom chain logging: " --log-level 7
+}
+
+rules_count=$(get_last_rule_number $tablename $built_chain)
+[ "${rules_count}" == "1" ] || {
+    echo 'error, unexpected rules count in'$built_chain
+    exit 1
+}
+
+if ! find_chain_exists $tablename $built_chain ; then
+    echo 'error, '$tablename' '$built_chain' should exits!'
+    exit 1
+fi
+
+count_references=$(get_chain_references_count $tablename $built_chain)
+[ "${count_references}" == "0" ] || {
+    echo 'error, references count should be 0'
+    exit 1
+}
+
+
 
 # test with two custom chain, as first and last
 # -- todo

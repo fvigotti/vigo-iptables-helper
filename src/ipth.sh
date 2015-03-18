@@ -26,6 +26,8 @@ default_ipt_chains[mangle]='PREROUTING FORWARD INPUT OUTPUT POSTROUTING'
 default_ipt_chains[raw]='PREROUTING OUTPUT'
 default_ipt_chains[security]='INPUT FORWARD OUTPUT'
 
+# /sbin/iptables
+export _ipt=$(which iptables)
 
 ipth_check_version () {
 REQUIRED_VERSION=$1
@@ -138,14 +140,14 @@ recursive_delete_chain() {
     creator[custom_chain_name]=$2
 
     # CLEAR PREVIOUS STATUS > delete references to chain and delete chain
-    echo '>>> deleting references for chain : '$creator[custom_chain_name] >&2
+    echo '>>> deleting references for chain : '${creator[custom_chain_name]} >&2
 
     deleted_items=$(delete_chain_references_in_default_chains "${creator[custom_chain_name]}" "${creator[table]}")
     echo '>>> deleting chain : '"${creator[custom_chain_name]}" >&2
     ## flush
-    /sbin/iptables -t "${creator[table]}" -F "${creator[custom_chain_name]}"
+    $_ipt -t "${creator[table]}" -F "${creator[custom_chain_name]}"
     ## delete
-    /sbin/iptables -t "${creator[table]}" -X "${creator[custom_chain_name]}"
+    $_ipt -t "${creator[table]}" -X "${creator[custom_chain_name]}"
 }
 
 create_chain_if_enabled() {
@@ -165,7 +167,7 @@ create_chain() {
     creator[table]=$1
     creator[custom_chain_name]=$2
 
-    /sbin/iptables -t "${creator[table]}" -N "${creator[custom_chain_name]}"
+    $_ipt -t "${creator[table]}" -N "${creator[custom_chain_name]}"
     [ "$?" == "0" ] || {
         echo '[FATAL] error during chain creation ! '"${creator[table]}"' '"${creator[custom_chain_name]}" >&2
         exit 1
@@ -175,9 +177,9 @@ create_chain() {
 
 
 set_default_accept_policy() {
-/sbin/iptables -t filter  -P INPUT ACCEPT
-/sbin/iptables -t filter  -P OUTPUT ACCEPT
-/sbin/iptables -t filter  -P FORWARD ACCEPT
+$_ipt -t filter  -P INPUT ACCEPT
+$_ipt -t filter  -P OUTPUT ACCEPT
+$_ipt -t filter  -P FORWARD ACCEPT
 }
 
 delete_created_custom_chains(){
@@ -246,7 +248,7 @@ create_jump_rule(){
         RULE_binding_action="I" # insert
     }
 
-    /sbin/iptables -t "${creator[table]}" -"${RULE_binding_action}" "${creator[chain_src]}" $RULE_position $JUMP_ADDITIONAL_PARAMS -j "${creator[chain_dst]}"
+    $_ipt -t "${creator[table]}" -"${RULE_binding_action}" "${creator[chain_src]}" $RULE_position $JUMP_ADDITIONAL_PARAMS -j "${creator[chain_dst]}"
 
     [ "$?" == "0" ] || {
         echo '[FATAL] error during jump insertion ! > '"${creator[table]}"' -'"${RULE_binding_action}"' '"${creator[chain_src]}"' '$RULE_position' '$JUMP_ADDITIONAL_PARAMS' -j '"${creator[chain_dst]}" >&2
@@ -261,8 +263,8 @@ create_jump_rule(){
 autocreate_manual_positioned_chain() {
 # autocreate , deleting previous version & references
 # if disabled param == "1" , only delete previous version
-    if [$# -ne 3]; then
-        echo '[FATAL] autocreate_non_positioned_chain > invalid param count 3 expected , and '$#' provided' >&2
+    if [ "$#" -ne 3 ]; then
+        echo '[FATAL] autocreate_non_positioned_chain > invalid param count 3 expected , and '"$#"' provided' >&2
         exit 1
     fi
     # HEADER
@@ -275,8 +277,7 @@ autocreate_manual_positioned_chain() {
 
     # RECREATE CHAIN IF ENABLED
     if $(create_chain_if_enabled $TABLE $CHAIN_NAME $ENABLED) ; then
-        create_chain "${creator[table]}" $GENERATED_CHAIN_NAME
-        echo $GENERATED_CHAIN_NAME
+        echo $CHAIN_NAME
     else
         echo ''
     fi

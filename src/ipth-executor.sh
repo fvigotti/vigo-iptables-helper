@@ -13,30 +13,28 @@ print_usage() {
  echo 'usage:'${script[name]}' $templatefile $ipthfile'
 }
 
-config[template_file]=$1
-config[ipth_file]=$2
-IPTH_ACTION=${2:-enable}
+config[ipth_file]=$1
+config[template_file]=$2
+IPTH_ACTION=${3:-enable}
 
 export UNLOAD_FIREWALL_VALUE=""
 
 
 
-[ ! -f "{$config[template_file]}" ] && {
-    echo 'invalid template file path > '"{$config[template_file]}"
+[ ! -f "${config[template_file]}" ] && {
+    echo 'invalid template file path > '"${config[template_file]}"
     print_usage
     exit 1
 }
 
-[ ! -f "{$config[ipth_file]}" ] && {
-    echo 'invalid template file path > '"{$config[ipth_file]}"
+[ ! -f "${config[ipth_file]}" ] && {
+    echo 'invalid ipth file path > '"${config[ipth_file]}"
     print_usage
     exit 1
 }
 
 
-config[output_dir]="/etc/ipth"
-
-
+config[output_dir]="/etc/ipth/changelogs"
 
 [ -d "${config[output_dir]}" ] || mkdir -p "${config[output_dir]}"
 
@@ -52,12 +50,16 @@ run_test(){
     save_pre_test_config
 }
 
+. ${config[ipth_file]}
+. ${config[template_file]}
+
 
 echo '... checking version'
-IPTH_TEMPLATE_VERSION "1.0"
+ipth_check_version $IPTH_TEMPLATE_VERSION || {
+exit 1
+}
 
-
-if [ IPTH_ACTION == "disable" ]; then
+if [ $IPTH_ACTION == "disable" ]; then
     echo '... [ACTION] > DISABLE , template will be executed with default-disabled-param'
     export UNLOAD_FIREWALL_VALUE="0"
 fi
@@ -67,7 +69,9 @@ fi
 echo '... set default accept policy'
 set_default_accept_policy
 
+save_pre_test_config
+
 echo '... applying template'
 ipth_template
 
-save_pre_test_config
+exit 0
