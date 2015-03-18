@@ -20,10 +20,22 @@ ipth handle the deletion of custom chains deleting their references around the t
 - ipth.sh contain all core functions
 - ipth-executor require the template to execute & ipth core locations 
 
+- template > must contain a metho called `ipth_template` which will be applied by `ipth-executor` 
+
+ipth-executor syntax:
+```bash
+ipth-executor templatefile ipthfile action    
+action=enable(default)/disable   
+```
+ 
+
+# NB
+version check is strict at the moment, it means that template version must be the same as the ipth ( backward compatibility may be always broken up at this stage )
 
 
 # todo:
 documentation & usability guide :)     
+v_last_ && v_first_ are strings which must be secure with a tests ( becuase are both used during atuomated creation and atuomated-deletion of chains ) 
 
 
 # inspirations:

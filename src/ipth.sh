@@ -35,6 +35,11 @@ return 1 ;
 }
 }
 
+ipth_forced_unload_or_value(){
+local custom_value=$1
+echo ${UNLOAD_FIREWALL_VALUE:-$custom_value}
+}
+
 find_chain_exists(){
 # search for a chain into a table
 # return true (in bash is "return 0") if chain exists , false if not
@@ -143,6 +148,17 @@ recursive_delete_chain() {
     /sbin/iptables -t "${creator[table]}" -X "${creator[custom_chain_name]}"
 }
 
+create_chain_if_enabled() {
+    local table=$1
+    local chain=$2
+    local enabled=$3
+    if [ $enabled == "1" ];then
+      create_chain $table $chain
+      return 0 # return true
+    fi
+    return 1 # return false
+}
+
 create_chain() {
 # create the required chain
     declare -A creator
@@ -170,6 +186,24 @@ delete_created_custom_chains(){
         echo '[WARNING] reset chain has been called but custom chain array is empty' >&2
         return 0
     fi
+
+    # delete LAST-POSITIONED RULES
+    for i in "${!custom_created_chains[@]}"
+    do
+        echo "key  : $i"
+        table_and_chain_to_split="${custom_created_chains[$i]}"
+        splitted_ar=(${table_and_chain_to_split//\// })
+        if [ "${#splitted_ar[@]}" != "2" ]; then
+            echo '[ERROR] delete_created_custom_chains>  error during table/chain split-count '$i' , table_and_chain_to_split='$table_and_chain_to_split' , splitted_ar='$splitted_ar >&2
+            return 1
+        else
+            #delete only last-positioned rules
+            if $(echo "${splitted_ar[1]}" | grep -q "v_last_") ; then
+                if_exists_recusively_delete_chain "${splitted_ar[0]}" "${splitted_ar[1]}"
+            fi
+        fi
+    done
+
     for i in "${!custom_created_chains[@]}"
     do
         echo "key  : $i"
@@ -223,6 +257,32 @@ create_jump_rule(){
 
 
 
+
+autocreate_manual_positioned_chain() {
+# autocreate , deleting previous version & references
+# if disabled param == "1" , only delete previous version
+    if [$# -ne 3]; then
+        echo '[FATAL] autocreate_non_positioned_chain > invalid param count 3 expected , and '$#' provided' >&2
+        exit 1
+    fi
+    # HEADER
+    local ENABLED=$1 # 0 = false , 1 = true
+    local TABLE=$2 # iptables destination table
+    local CHAIN_NAME=$3 # destination chain
+
+    # FLUSH PREVIOUS VERSION
+    if_exists_recusively_delete_chain $TABLE $CHAIN_NAME
+
+    # RECREATE CHAIN IF ENABLED
+    if $(create_chain_if_enabled $TABLE $CHAIN_NAME $ENABLED) ; then
+        create_chain "${creator[table]}" $GENERATED_CHAIN_NAME
+        echo $GENERATED_CHAIN_NAME
+    else
+        echo ''
+    fi
+}
+
+
 autocreate_autopositioned_chain() {
 # create chain autopositioned & autnominated on top/bottom of another chain
 # return the name of the chain created or '' if the chain has been only flushed & deleted
@@ -246,10 +306,7 @@ autocreate_autopositioned_chain() {
     echo 'generated chain name : '$GENERATED_CHAIN_NAME >&2
 
     # FLUSH PREVIOUS VERSION OF THE CHAIN
-    if find_chain_exists "${creator[table]}" $GENERATED_CHAIN_NAME ; then
-        echo 'previous version of the chain is going to be flushed : '$GENERATED_CHAIN_NAME >&2
-        recursive_delete_chain "${creator[table]}" $GENERATED_CHAIN_NAME
-    fi
+    if_exists_recusively_delete_chain "${creator[table]}" $GENERATED_CHAIN_NAME
 
 
     if [ "${creator[enabled]}" -eq "1" ] ; then
