@@ -64,13 +64,13 @@ fi
 }
 
 
-generated_table=$(autocreate_autopositioned_chain 0 'filter' 'INPUT' 'first')
+generated_table=$(autocreate_AUTOpositioned_chain 0 'filter' 'INPUT' 'first')
 [ ! -z "$generated_table" ] && {
     echo 'error, table should has been disabled! > '$generated_table
     exit 1
 }
 
-generated_table=$(autocreate_autopositioned_chain 1 'filter' 'INPUT' 'first')
+generated_table=$(autocreate_AUTOpositioned_chain 1 'filter' 'INPUT' 'first')
 [ -z "$generated_table" ] && {
     echo 'error, table should has been enabled! > '$generated_table
     exit 1
@@ -91,7 +91,7 @@ chainparent_position="first"
 chain_parent="INPUT"
 enabled="1"
 # full & recreate rule
-built_chain=$(autocreate_autopositioned_chain $enabled $tablename $chain_parent $chainparent_position)
+built_chain=$(autocreate_AUTOpositioned_chain $enabled $tablename $chain_parent $chainparent_position)
 # if created, apply rules
 [ ! -z "$built_chain" ] && {
 custom_created_chains+=("$tablename/$built_chain")
@@ -126,7 +126,7 @@ chainparent_position="first"
 chain_parent="INPUT"
 enabled="1"
 # full & recreate rule
-built_chain=$(autocreate_autopositioned_chain $enabled $tablename $chain_parent $chainparent_position)
+built_chain=$(autocreate_AUTOpositioned_chain $enabled $tablename $chain_parent $chainparent_position)
 BUILT_auto_CHAIN_1=$built_chain
 # if created, apply rules
 [ ! -z "$built_chain" ] && {
@@ -142,7 +142,7 @@ chainparent_position="last"
 chain_parent="FORWARD"
 enabled="1"
 # full & recreate rule
-built_chain=$(autocreate_autopositioned_chain $enabled $tablename $chain_parent $chainparent_position)
+built_chain=$(autocreate_AUTOpositioned_chain $enabled $tablename $chain_parent $chainparent_position)
 BUILT_auto_CHAIN_2=$built_chain
 # if created, apply rules
 [ ! -z "$built_chain" ] && {
@@ -188,7 +188,7 @@ fi
 tablename="filter"
 chain_manual_name="test_manual_chain"
 enabled="1"
-built_chain=$(autocreate_manual_positioned_chain $enabled $tablename $chain_manual_name)
+built_chain=$(autocreate_MANUAL_positioned_chain $enabled $tablename $chain_manual_name)
 [ ! -z "$built_chain" ] && {
 custom_created_chains+=("$tablename/$built_chain")
 /sbin/iptables  -t  $tablename  -A "$built_chain" -p tcp -m limit --limit 5/min -j LOG --log-prefix " custom chain logging: " --log-level 7

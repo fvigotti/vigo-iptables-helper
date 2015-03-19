@@ -261,7 +261,7 @@ create_jump_rule(){
 
 
 
-autocreate_manual_positioned_chain() {
+autocreate_MANUAL_positioned_chain() {
 # autocreate , deleting previous version & references
 # if disabled param == "1" , only delete previous version
     if [ "$#" -ne 3 ]; then
@@ -285,41 +285,40 @@ autocreate_manual_positioned_chain() {
 }
 
 
-autocreate_autopositioned_chain() {
+autocreate_AUTOpositioned_chain() {
 # create chain autopositioned & autnominated on top/bottom of another chain
 # return the name of the chain created or '' if the chain has been only flushed & deleted
 
-    declare -A creator
-
     # HEADER
-    creator[enabled]=$1 # 0 = false , 1 = true
-    creator[table]=$2 # iptables destination table
-    creator[chain]=$3 # destination chain
-    creator[position]=$4 # first , last ( default)
+    local OPTS_ENABLED=$1 # 0 = false , 1 = true
+    local OPTS_TABLE=$2 # iptables destination table
+    local OPTS_CHAIN=$3 # destination chain
+    local OPTS_POSITION=$4 # first , last ( default)
 
     # PARAM VALIDATION
-    [ "${creator[position]}" != "first" ] && [ "${creator[position]}" != "last" ] && {
-        echo '[FATAL] invalid chain positioning '"${creator[position]}" >&2
+    [ "${OPTS_POSITION}" != "first" ] && [ "${OPTS_POSITION}" != "last" ] && {
+        echo '[FATAL] invalid chain positioning '"${OPTS_POSITION}" >&2
         exit 1
     }
 
+
     # GENERATE CHAIN NAME
-    local GENERATED_CHAIN_NAME=$(autogenerate_custom_chain_name "${creator[table]}" "${creator[chain]}" "${creator[position]}")
-    echo 'generated chain name : '$GENERATED_CHAIN_NAME >&2
+    local GENERATED_CHAIN_NAME=$(autogenerate_custom_chain_name "${OPTS_TABLE}" "${OPTS_CHAIN}" "${OPTS_POSITION}")
+    echo 'generated chain name : '$GENERATED_CHAIN_NAME' from > '"${OPTS_TABLE}" "${OPTS_CHAIN}" "${OPTS_POSITION}" >&2
 
     # FLUSH PREVIOUS VERSION OF THE CHAIN
-    if_exists_recusively_delete_chain "${creator[table]}" $GENERATED_CHAIN_NAME
+    if_exists_recusively_delete_chain "${OPTS_TABLE}" $GENERATED_CHAIN_NAME
 
 
-    if [ "${creator[enabled]}" -eq "1" ] ; then
+    if [ "${OPTS_ENABLED}" -eq "1" ] ; then
 
-        create_chain "${creator[table]}" $GENERATED_CHAIN_NAME
-        create_jump_rule "${creator[table]}" "${creator[chain]}" $GENERATED_CHAIN_NAME "${creator[position]}"
+        create_chain "${OPTS_TABLE}" $GENERATED_CHAIN_NAME
+        create_jump_rule "${OPTS_TABLE}" "${OPTS_CHAIN}" $GENERATED_CHAIN_NAME "${OPTS_POSITION}"
 
-        echo 'chain '$GENERATED_CHAIN_NAME ' is now enabled' >&2
+        echo 'chain '$GENERATED_CHAIN_NAME ' is now enabled ('"${OPTS_TABLE}" "${OPTS_CHAIN}" "${OPTS_POSITION}"')' >&2
         echo $GENERATED_CHAIN_NAME
     else
-        echo 'chain '$GENERATED_CHAIN_NAME ' will be disabled' >&2
+        echo 'chain '$GENERATED_CHAIN_NAME ' will be disabled ('"${OPTS_TABLE}" "${OPTS_CHAIN}" "${OPTS_POSITION}"')' >&2
         echo ''
     fi
 

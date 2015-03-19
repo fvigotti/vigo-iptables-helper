@@ -62,7 +62,7 @@ ipth_check_version $IPTH_TEMPLATE_VERSION || {
 exit 1
 }
 
-
+#####  ACTION ---> SAVE
 [ "$IPTH_ACTION" == "save" ] && {
     #save iptables current configuration and exit
     iptables_save_without_docker $DEFAULT_IPTABLES_SAVED_CONFIGURATION_FILE
@@ -71,7 +71,7 @@ exit 1
 }
 
 
-
+#####  ACTION ---> DISABLE
 if [ $IPTH_ACTION == "disable" ]; then
     echo '... [ACTION] > DISABLE , template will be executed with default-disabled-param'
     export UNLOAD_FIREWALL_VALUE="0"
