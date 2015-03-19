@@ -3,14 +3,14 @@
 # BASICS -----------------------------------------------------------------------
 # shell options: extended globbing
 shopt -qs extglob
-
+set -x
 declare -Ax config script
 
 script[name]="${0##*/}"
-
+export DEFAULT_IPTABLES_SAVED_CONFIGURATION_FILE="/etc/network/iptables.rules"
 
 print_usage() {
- echo 'usage:'${script[name]}' $templatefile $ipthfile'
+ echo 'usage:'${script[name]}' $templatefile $ipthfile $action[enable/disable/save]'
 }
 
 config[ipth_file]=$1
@@ -20,13 +20,6 @@ IPTH_ACTION=${3:-enable}
 export UNLOAD_FIREWALL_VALUE=""
 
 
-
-[ ! -f "${config[template_file]}" ] && {
-    echo 'invalid template file path > '"${config[template_file]}"
-    print_usage
-    exit 1
-}
-
 [ ! -f "${config[ipth_file]}" ] && {
     echo 'invalid ipth file path > '"${config[ipth_file]}"
     print_usage
@@ -34,20 +27,27 @@ export UNLOAD_FIREWALL_VALUE=""
 }
 
 
-config[output_dir]="/etc/ipth/changelogs"
+[ ! -f "${config[template_file]}" ] && {
+    echo 'invalid template file path > '"${config[template_file]}"
+    print_usage
+    exit 1
+}
+
+
+config[output_dir]="/etc/ipth/saved"
 
 [ -d "${config[output_dir]}" ] || mkdir -p "${config[output_dir]}"
 
 
 
-save_pre_test_config(){
+save_pre_execution_iptables_config(){
   sudo sh -c "iptables-save > ${config[output_dir]}/saved_pre_test.rules"
   local tmp_save_filename='ipth_'$(date +%s)'_pre_test.rules'
   sudo sh -c "iptables-save > /tmp/${tmp_save_filename}"
 }
 
 run_test(){
-    save_pre_test_config
+    save_pre_execution_iptables_config
 }
 
 . ${config[ipth_file]}
@@ -59,6 +59,16 @@ ipth_check_version $IPTH_TEMPLATE_VERSION || {
 exit 1
 }
 
+
+[ "$IPTH_ACTION" == "save" ] && {
+    #save iptables current configuration and exit
+    iptables_save_without_docker $DEFAULT_IPTABLES_SAVED_CONFIGURATION_FILE
+    echo 'current iptables configuration (without docker chains) saved in '$DEFAULT_IPTABLES_SAVED_CONFIGURATION_FILE
+    exit 0
+}
+
+
+
 if [ $IPTH_ACTION == "disable" ]; then
     echo '... [ACTION] > DISABLE , template will be executed with default-disabled-param'
     export UNLOAD_FIREWALL_VALUE="0"
@@ -69,7 +79,7 @@ fi
 echo '... set default accept policy'
 set_default_accept_policy
 
-save_pre_test_config
+save_pre_execution_iptables_config
 
 echo '... applying template'
 ipth_template

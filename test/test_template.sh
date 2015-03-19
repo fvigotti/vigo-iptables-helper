@@ -17,11 +17,13 @@ exit 1
 
 /bin/bash "${SRC_DIR}/ipth-executor.sh" "${SRC_DIR}/ipth.sh"  "${TEMPLATE_FILE}" "enable"
 
-
 iptables -L -v -n
 
 echo "\n now disable.. "
 
 /bin/bash "${SRC_DIR}/ipth-executor.sh" "${SRC_DIR}/ipth.sh"  "${TEMPLATE_FILE}" "disable"
 iptables -L -v -n
+
+
+
 

@@ -28,6 +28,7 @@ default_ipt_chains[security]='INPUT FORWARD OUTPUT'
 
 # /sbin/iptables
 export _ipt=$(which iptables)
+export _ipt_save=$(which iptables-save)
 
 ipth_check_version () {
 REQUIRED_VERSION=$1
@@ -325,3 +326,10 @@ autocreate_autopositioned_chain() {
 
 }
 
+
+iptables_save_without_docker(){
+    # save current configuration without docker chains & rules
+
+    local destination=$1
+    $_ipt_save | grep -iv ' docker0' | grep -v ' -j DOCKER' | grep -v ':DOCKER -' > "${destination}"
+}
