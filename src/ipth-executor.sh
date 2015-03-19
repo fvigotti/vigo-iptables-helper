@@ -6,18 +6,21 @@ shopt -qs extglob
 set -x
 declare -Ax config script
 
+# --  DEFAULTS
 script[name]="${0##*/}"
 export DEFAULT_IPTABLES_SAVED_CONFIGURATION_FILE="/etc/network/iptables.rules"
+config[output_dir]="/etc/ipth/saved"
+export UNLOAD_FIREWALL_VALUE="" #if set this variable can override default rules enabling (in order to flush all ipth managed chains)
 
+
+# --  HEADERS
 print_usage() {
  echo 'usage:'${script[name]}' $templatefile $ipthfile $action[enable/disable/save]'
 }
-
 config[ipth_file]=$1
 config[template_file]=$2
 IPTH_ACTION=${3:-enable}
 
-export UNLOAD_FIREWALL_VALUE=""
 
 
 [ ! -f "${config[ipth_file]}" ] && {
@@ -34,7 +37,7 @@ export UNLOAD_FIREWALL_VALUE=""
 }
 
 
-config[output_dir]="/etc/ipth/saved"
+
 
 [ -d "${config[output_dir]}" ] || mkdir -p "${config[output_dir]}"
 
