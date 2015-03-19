@@ -38,7 +38,7 @@ documentation & usability guide :)
 v_last_ && v_first_ are strings which must be secure with a tests ( becuase are both used during atuomated creation and atuomated-deletion of chains ) 
 
 
-# inspirations:
+# inspirations & resources:
 http://www.linuxquestions.org/questions/linux-security-4/yes-sir-another-iptables-management-script-911936/
          -> http://pastie.org/2851019
          
@@ -46,3 +46,4 @@ http://daemonkeeper.net/781/mass-blocking-ip-addresses-with-ipset/
 
 https://github.com/lehmannro/assert.sh/blob/master/assert.sh
 
+http://www.iptables.info/en/iptables-targets-and-jumps.html
