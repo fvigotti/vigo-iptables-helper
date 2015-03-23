@@ -24,7 +24,7 @@ config[template_file]=$2
 IPTH_ACTION=${3:-enable}
 
 
-[ "${script[name]}" != "bash" ] && {
+[ "$BASH" != "bash" ] && {
     echo 'script is only bash compatible at the moment > '"${script[name]}"
     exit 1
 }
