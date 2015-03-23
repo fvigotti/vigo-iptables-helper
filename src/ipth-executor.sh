@@ -24,8 +24,8 @@ config[template_file]=$2
 IPTH_ACTION=${3:-enable}
 
 
-[ "$BASH"  =~ ^.*bash$ ] || {
-    echo 'script is only bash compatible at the moment > '"${script[name]}"
+[[ "$BASH"  =~ ^.*bash$ ]] || {
+    echo 'script is only bash compatible at the moment > '"$0"
     exit 1
 }
 
