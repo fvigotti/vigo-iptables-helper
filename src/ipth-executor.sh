@@ -8,6 +8,8 @@ declare -Ax config script
 
 # --  DEFAULTS
 script[name]="${0##*/}"
+
+
 export DEFAULT_IPTABLES_SAVED_CONFIGURATION_FILE="/etc/network/iptables.rules"
 config[output_dir]="/etc/ipth/saved"
 export UNLOAD_FIREWALL_VALUE="" #if set this variable can override default rules enabling (in order to flush all ipth managed chains)
@@ -22,6 +24,10 @@ config[template_file]=$2
 IPTH_ACTION=${3:-enable}
 
 
+[ "${script[name]}" != "bash" ] && {
+    echo 'script is only bash compatible at the moment > '"${script[name]}"
+    exit 1
+}
 
 [ ! -f "${config[ipth_file]}" ] && {
     echo 'invalid ipth file path > '"${config[ipth_file]}"
