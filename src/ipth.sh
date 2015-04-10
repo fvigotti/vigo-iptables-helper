@@ -173,7 +173,9 @@ create_chain() {
     $_ipt -t "${creator[table]}" -N "${creator[custom_chain_name]}"
     [ "$?" == "0" ] || {
         echo '[FATAL] error during chain creation ! '"${creator[table]}"' '"${creator[custom_chain_name]}" >&2
-        exit 1
+        # exit 1 # there is a bug in chain deletion  ( which didn't delete correctly reference from custom chains to custom chains so the successive creation fail because the chain already exsits )
+        echo '[BUG!] skipping error, attemp to continue anyway ... ' >&2
+        return 0
     }
     return 0
 }
