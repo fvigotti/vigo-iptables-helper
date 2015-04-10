@@ -85,7 +85,9 @@ local COUNTER=0
 
 for def_chain_name in ${default_ipt_chains[$table_name]}
   do
+  echo 'searching '$chain_to_search' links on table : '$table_name'   , chain '$def_chain_name >&2
   found_rulenumber=$(find_jumpchain_rule_number $table_name $def_chain_name $chain_to_search)
+
   [ "$found_rulenumber" -gt "0" ] && {
       echo 'found/deleting rule on : '$table_name' > '$def_chain_name' rule n.: '$found_rulenumber  >&2
       COUNTER=$[$COUNTER +1]
